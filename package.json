@@ -1,0 +1,61 @@
+{
+  "name": "cromatica",
+  "version": "0.1.0",
+  "description": "Official CLI toolkit for Cromatica Media projects. Fetch and scaffold blocks from the Cromatica Block Bank into your cm-template-website project.",
+  "author": "Leonardo Risco",
+  "type": "module",
+  "bin": {
+    "cromatica": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "format": "prettier --write ."
+  },
+  "keywords": [
+    "cromatica",
+    "cli",
+    "blocks",
+    "payload",
+    "nextjs",
+    "scaffold"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cromatica-media/cm-cli.git"
+  },
+  "homepage": "https://bank.cromatica.media",
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "commander": "^12.1.0",
+    "ora": "^8.1.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "prettier": "^3.8.3",
+    "typescript": "^5.5.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "dist"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "preferGlobal": true,
+  "bugs": {
+    "url": "https://github.com/cromatica-media/cm-cli/issues"
+  },
+  "funding": {
+    "type": "other",
+    "url": "https://cromatica.media"
+  }
+}
