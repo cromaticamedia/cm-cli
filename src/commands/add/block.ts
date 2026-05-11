@@ -46,7 +46,7 @@ async function validateProject() {
 // ── Fetch block from Bank API ─────────────────────────────────────────────────
 
 async function fetchBlock(blockName: string) {
-  const url = `${BANK_API_URL}/blocks?where[name][equals]=${blockName}&depth=0&limit=1`
+  const url = `${BANK_API_URL}/blocks?where[slug][equals]=${blockName}&depth=0&limit=1`
   const response = await fetch(url)
 
   if (!response.ok) {
@@ -55,7 +55,7 @@ async function fetchBlock(blockName: string) {
 
   const data = (await response.json()) as {
     docs: Array<{
-      name: string
+      slug: string
       files: {
         componentTsx: string
         blockTs: string
