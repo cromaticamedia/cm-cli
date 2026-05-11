@@ -1,6 +1,7 @@
 import chalk from 'chalk'
 import ora from 'ora'
 import fs from 'fs/promises'
+import { execSync } from 'child_process'
 import path from 'path'
 
 const BANK_API_URL = 'https://bank.cromatica.media/api'
@@ -153,6 +154,22 @@ async function injectIntoRenderBlocks(blockName: string, pascalName: string) {
   return true
 }
 
+// ── Generate Payload types ────────────────────────────────────────────────────
+
+function generateTypes() {
+  const hasPnpm = (() => {
+    try {
+      execSync('pnpm --version', { stdio: 'ignore' })
+      return true
+    } catch {
+      return false
+    }
+  })()
+
+  const cmd = hasPnpm ? 'pnpm payload generate:types' : 'npx payload generate:types'
+  execSync(cmd, { stdio: 'inherit', cwd: process.cwd() })
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 export async function addBlock(blockName: string) {
@@ -221,6 +238,17 @@ export async function addBlock(blockName: string) {
     process.exit(1)
   }
 
+  // 6. Generate Payload types
+  const typesSpinner = ora(`Generating Payload types`).start()
+  try {
+    generateTypes()
+    typesSpinner.succeed(`Payload types regenerated`)
+  } catch (err) {
+    typesSpinner.fail(
+      chalk.red(`Failed to generate types — run "pnpm payload generate:types" manually`),
+    )
+  }
+
   // Done
   console.log('')
   console.log(chalk.bold.green('  ✔ Block added successfully'))
@@ -231,5 +259,6 @@ export async function addBlock(blockName: string) {
   console.log(`  ${chalk.gray('Schema')}      src/blocks/${pascalName}/${pascalName}.block.ts`)
   console.log(`  ${chalk.gray('Injected')}    src/fields/Blocks/Blocks.field.ts`)
   console.log(`  ${chalk.gray('Injected')}    src/components/blocks/RenderBlocks.tsx`)
+  console.log(`  ${chalk.gray('Types')}       src/payload-types.ts`)
   console.log('')
 }
