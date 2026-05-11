@@ -24,6 +24,25 @@ async function fileExists(filePath: string): Promise<boolean> {
   }
 }
 
+// ── Validate project structure ────────────────────────────────────────────────
+
+async function validateProject() {
+  const requiredPaths = [
+    path.join(process.cwd(), 'src', 'fields', 'Blocks', 'Blocks.field.ts'),
+    path.join(process.cwd(), 'src', 'components', 'blocks', 'RenderBlocks.tsx'),
+    path.join(process.cwd(), 'src', 'blocks'),
+  ]
+
+  for (const requiredPath of requiredPaths) {
+    const exists = await fileExists(requiredPath)
+    if (!exists) {
+      throw new Error(
+        `This command must be run inside a cm-template-website project or in a fork of itself.\n  Missing: ${requiredPath}`,
+      )
+    }
+  }
+}
+
 // ── Fetch block from Bank API ─────────────────────────────────────────────────
 
 async function fetchBlock(blockName: string) {
@@ -178,6 +197,16 @@ export async function addBlock(blockName: string) {
   console.log('')
   console.log(chalk.bold.blue(`  cromatica`) + chalk.gray(` — add block`))
   console.log(chalk.gray(`  Fetching "${blockName}" from the Block Bank...\n`))
+
+  // 0. Validate project
+  const validateSpinner = ora(`Validating project structure`).start()
+  try {
+    await validateProject()
+    validateSpinner.succeed(`Valid cm-template-website project detected`)
+  } catch (err) {
+    validateSpinner.fail(chalk.red((err as Error).message))
+    process.exit(1)
+  }
 
   // 1. Fetch
   const spinner = ora(`Fetching ${chalk.cyan(blockName)} from Block Bank`).start()
