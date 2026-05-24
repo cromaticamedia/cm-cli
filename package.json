@@ -1,5 +1,5 @@
 {
-  "name": "cromatica",
+  "name": "cm-cli",
   "version": "0.1.0",
   "description": "Official CLI toolkit for Cromatica Media projects. Fetch and scaffold blocks from the Cromatica Block Bank into your cm-template-website project.",
   "author": "Leonardo Risco",
