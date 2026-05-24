@@ -56,6 +56,7 @@ async function fetchBlock(blockName: string) {
   const data = (await response.json()) as {
     docs: Array<{
       slug: string
+      preview?: number | null
       files: {
         componentTsx: string
         blockTs: string
@@ -68,6 +69,23 @@ async function fetchBlock(blockName: string) {
   }
 
   return data.docs[0]
+}
+
+async function fetchPreviewImageUrl(previewId: number): Promise<string | null> {
+  try {
+    const url = `${BANK_API_URL}/media/${previewId}`
+    const response = await fetch(url)
+    if (!response.ok) return null
+    const data = (await response.json()) as {
+      sizes?: { thumbnail?: { url?: string | null } | null } | null
+      url?: string | null
+    }
+    const relativePath = data.sizes?.thumbnail?.url ?? data.url ?? null
+    if (!relativePath) return null
+    return `https://bank.cromatica.media${relativePath}`
+  } catch {
+    return null
+  }
 }
 
 // ── Create component files ────────────────────────────────────────────────────
@@ -88,13 +106,23 @@ async function createComponentFiles(pascalName: string, componentTsx: string) {
 
 // ── Create block schema files ─────────────────────────────────────────────────
 
-async function createBlockFiles(pascalName: string, blockTs: string) {
+async function createBlockFiles(
+  pascalName: string,
+  blockTs: string,
+  previewImageUrl: string | null,
+) {
   const blockDir = path.join(process.cwd(), 'src', 'blocks', pascalName)
-
   await fs.mkdir(blockDir, { recursive: true })
 
-  await fs.writeFile(path.join(blockDir, `${pascalName}.block.ts`), blockTs, 'utf-8')
+  let finalBlockTs = blockTs
+  if (previewImageUrl) {
+    finalBlockTs = blockTs.replace(
+      /admin:\s*\{/,
+      `admin: {\n    images: { thumbnail: '${previewImageUrl}' },`,
+    )
+  }
 
+  await fs.writeFile(path.join(blockDir, `${pascalName}.block.ts`), finalBlockTs, 'utf-8')
   await fs.writeFile(
     path.join(blockDir, 'index.ts'),
     `export { default } from './${pascalName}.block'\n`,
@@ -120,16 +148,19 @@ async function injectIntoBlocksField(pascalName: string) {
     return false
   }
 
+  // Insert import after last import line
   const lastImportIndex = content.lastIndexOf('import ')
   const endOfLastImport = content.indexOf('\n', lastImportIndex)
   content =
     content.slice(0, endOfLastImport + 1) + importLine + '\n' + content.slice(endOfLastImport + 1)
 
+  // Inject into blocks array — handles multiline and existing entries
   content = content.replace(
-    /blocks:\s*\[([^\]]*)\]/,
+    /blocks:\s*\[([^\]]*)\]/s,
     (_, inner) => `blocks: [${inner.trimEnd()}, ${pascalName}Block]`,
   )
 
+  content = normalizeBlankLines(content)
   await fs.writeFile(blocksFieldPath, content, 'utf-8')
   return true
 }
@@ -158,17 +189,21 @@ async function injectIntoRenderBlocks(blockName: string, pascalName: string) {
     return false
   }
 
-  // Add import after last import line
+  // Insert import after last import line
   const lastImportIndex = content.lastIndexOf('import ')
   const endOfLastImport = content.indexOf('\n', lastImportIndex)
   content =
     content.slice(0, endOfLastImport + 1) + importLine + '\n' + content.slice(endOfLastImport + 1)
 
-  // Add case to switch
-  const caseLine = `          case '${blockName}':\n            return <${pascalName} key={index} {...block} locale={locale} />`
+  // Insert extracted type before "type Layout"
+  const typeLine = `type ${pascalName}Type = Extract<Layout[number], { blockType: '${blockName}' }>`
+  content = content.replace(/^(type Layout)/m, `${typeLine}\n\n$1`)
 
+  // Add case to switch
+  const caseLine = `          case '${blockName}':\n            return <${pascalName} key={index} {...(block as ${pascalName}Type)} locale={locale} />`
   content = content.replace(/(default:\s*\n\s*return null)/, `${caseLine}\n          $1`)
 
+  content = normalizeBlankLines(content)
   await fs.writeFile(renderBlocksPath, content, 'utf-8')
   return true
 }
@@ -187,6 +222,18 @@ function generateTypes() {
 
   const cmd = hasPnpm ? 'pnpm payload generate:types' : 'npx payload generate:types'
   execSync(cmd, { stdio: 'inherit', cwd: process.cwd() })
+}
+
+// Normalize blank lines
+
+function normalizeBlankLines(content: string): string {
+  // Collapse all blank lines between import block and type/export block to exactly one
+  content = content.replace(/((?:^import [^\n]+\n)+)\n+((?:type |export ))/m, '$1\n$2')
+  // Max 1 blank line between consecutive imports
+  content = content.replace(/^(import [^\n]+\n)\n+(?=import )/gm, '$1')
+  // Max 2 consecutive newlines everywhere else
+  content = content.replace(/\n{3,}/g, '\n\n')
+  return content
 }
 
 // ── Main ──────────────────────────────────────────────────────────────────────
@@ -211,8 +258,12 @@ export async function addBlock(blockName: string) {
   // 1. Fetch
   const spinner = ora(`Fetching ${chalk.cyan(blockName)} from Block Bank`).start()
   let block: Awaited<ReturnType<typeof fetchBlock>>
+  let previewImageUrl: string | null = null
   try {
     block = await fetchBlock(blockName)
+    if (block.preview) {
+      previewImageUrl = await fetchPreviewImageUrl(block.preview)
+    }
     spinner.succeed(`Block ${chalk.cyan(blockName)} found`)
   } catch (err) {
     spinner.fail(chalk.red((err as Error).message))
@@ -232,7 +283,7 @@ export async function addBlock(blockName: string) {
   // 3. Create block schema files
   const schemaSpinner = ora(`Creating Payload schema files`).start()
   try {
-    await createBlockFiles(pascalName, block.files.blockTs)
+    await createBlockFiles(pascalName, block.files.blockTs, previewImageUrl)
     schemaSpinner.succeed(`Created ${chalk.green(`src/blocks/${pascalName}/`)}`)
   } catch (err) {
     schemaSpinner.fail(chalk.red((err as Error).message))
