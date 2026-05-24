@@ -4,12 +4,19 @@ import { program } from 'commander'
 import chalk from 'chalk'
 import { addBlock } from './commands/add/block.js'
 import { deleteBlock } from './commands/delete/block.js'
+import { listBlocks } from './commands/list.js'
 
 program
   .name('cromatica')
   .description('Official CLI toolkit for Cromatica Media projects')
   .version('0.1.0')
 
+program
+  .command('list')
+  .description('List installed blocks and their status')
+  .action(() => {
+    listBlocks()
+  })
 program
   .command('add')
   .argument('<subcommand>', 'Subcommand to run (block)')
