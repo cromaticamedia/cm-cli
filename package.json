@@ -5,7 +5,7 @@
   "author": "Leonardo Risco",
   "type": "module",
   "bin": {
-    "cromatica": "./dist/index.js"
+    "cromatica": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
@@ -24,7 +24,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cromatica-media/cm-cli.git"
+    "url": "git+https://github.com/cromatica-media/cm-cli.git"
   },
   "homepage": "https://bank.cromatica.media",
   "dependencies": {
