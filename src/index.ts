@@ -2,14 +2,18 @@
 
 import { program } from 'commander'
 import chalk from 'chalk'
+import { createRequire } from 'module'
 import { addBlock } from './commands/add/block.js'
 import { deleteBlock } from './commands/delete/block.js'
 import { listBlocks } from './commands/list.js'
 
+const require = createRequire(import.meta.url)
+const { version } = require('../package.json') as { version: string }
+
 program
   .name('cromatica')
   .description('Official CLI toolkit for Cromatica Media projects')
-  .version('0.1.0')
+  .version(version)
 
 program
   .command('list')

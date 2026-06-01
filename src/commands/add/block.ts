@@ -183,24 +183,41 @@ async function injectIntoRenderBlocks(blockName: string, pascalName: string) {
 
   let content = await fs.readFile(renderBlocksPath, 'utf-8')
 
-  const importLine = `import ${pascalName} from '@/components/blocks/${pascalName}'`
+  const componentImportLine = `import ${pascalName} from '@/components/blocks/${pascalName}'`
+  if (content.includes(componentImportLine)) return false
 
-  if (content.includes(importLine)) {
-    return false
+  // ── 1. Type import primero ────────────────────────────────────────────────
+  const blocksTypeImportRegex = /import type \{([^}]+)\} from '@\/types\/blocks'/
+  const typeImport = `${pascalName}Props`
+
+  if (blocksTypeImportRegex.test(content)) {
+    content = content.replace(
+      blocksTypeImportRegex,
+      (_, existing: string) =>
+        `import type { ${existing.trim()}, ${typeImport} } from '@/types/blocks'`,
+    )
+  } else {
+    const typeImportLine = `import type { ${typeImport} } from '@/types/blocks'`
+    const firstImportIndex = content.indexOf('import ')
+    const endOfFirstImport = content.indexOf('\n', firstImportIndex)
+    content =
+      content.slice(0, endOfFirstImport + 1) +
+      typeImportLine +
+      '\n' +
+      content.slice(endOfFirstImport + 1)
   }
 
-  // Insert import after last import line
+  // ── 2. Component import después ───────────────────────────────────────────
   const lastImportIndex = content.lastIndexOf('import ')
   const endOfLastImport = content.indexOf('\n', lastImportIndex)
   content =
-    content.slice(0, endOfLastImport + 1) + importLine + '\n' + content.slice(endOfLastImport + 1)
+    content.slice(0, endOfLastImport + 1) +
+    componentImportLine +
+    '\n' +
+    content.slice(endOfLastImport + 1)
 
-  // Insert extracted type before "type Layout"
-  const typeLine = `type ${pascalName}Type = Extract<Layout[number], { blockType: '${blockName}' }>`
-  content = content.replace(/^(type Layout)/m, `${typeLine}\n\n$1`)
-
-  // Add case to switch
-  const caseLine = `          case '${blockName}':\n            return <${pascalName} key={index} {...(block as ${pascalName}Type)} locale={locale} />`
+  // ── 3. Case en el switch ──────────────────────────────────────────────────
+  const caseLine = `          case '${blockName}':\n            return <${pascalName} key={index} {...(block as ${pascalName}Props)} locale={locale} />`
   content = content.replace(/(default:\s*\n\s*return null)/, `${caseLine}\n          $1`)
 
   content = normalizeBlankLines(content)
@@ -336,21 +353,7 @@ export async function addBlock(blockName: string) {
     process.exit(1)
   }
 
-  // 5. Inject into RenderBlocks.tsx
-  const renderSpinner = ora(`Injecting block into RenderBlocks.tsx`).start()
-  try {
-    const injected = await injectIntoRenderBlocks(blockName, pascalName)
-    if (injected) {
-      renderSpinner.succeed(`Injected ${chalk.green(`${pascalName}`)} into RenderBlocks.tsx`)
-    } else {
-      renderSpinner.warn(`${chalk.yellow(`${pascalName}`)} was already in RenderBlocks.tsx`)
-    }
-  } catch (err) {
-    renderSpinner.fail(chalk.red((err as Error).message))
-    process.exit(1)
-  }
-
-  // 6. Generate Payload types
+  // 5. Generate Payload types
   const typesSpinner = ora(`Generating Payload types`).start()
   try {
     generateTypes()
@@ -362,7 +365,7 @@ export async function addBlock(blockName: string) {
     process.exit(1)
   }
 
-  // 7. Inject into src/types/blocks.ts
+  // 6. Inject into src/types/blocks.ts
   const blocksTypesSpinner = ora(`Injecting types into blocks.ts`).start()
   try {
     const injected = await injectIntoBlocksTypes(blockName, pascalName)
@@ -378,6 +381,21 @@ export async function addBlock(blockName: string) {
     process.exit(1)
   }
 
+  // 7. Inject into RenderBlocks.tsx
+  console.log('DEBUG - about to inject into RenderBlocks')
+  const renderSpinner = ora(`Injecting block into RenderBlocks.tsx`).start()
+  try {
+    const injected = await injectIntoRenderBlocks(blockName, pascalName)
+    if (injected) {
+      renderSpinner.succeed(`Injected ${chalk.green(`${pascalName}`)} into RenderBlocks.tsx`)
+    } else {
+      renderSpinner.warn(`${chalk.yellow(`${pascalName}`)} was already in RenderBlocks.tsx`)
+    }
+  } catch (err) {
+    renderSpinner.fail(chalk.red((err as Error).message))
+    process.exit(1)
+  }
+
   // Done
   console.log(chalk.bold.green('  ✔ Block added successfully'))
   console.log('')
@@ -386,8 +404,8 @@ export async function addBlock(blockName: string) {
   )
   console.log(`  ${chalk.gray('Schema')}      src/blocks/${pascalName}/${pascalName}.block.ts`)
   console.log(`  ${chalk.gray('Injected')}    src/fields/Blocks/Blocks.field.ts`)
+  console.log(`  ${chalk.gray('Types')}       src/payload-types.ts`)
+  console.log(`  ${chalk.gray('Types')}       src/types/blocks.ts`)
   console.log(`  ${chalk.gray('Injected')}    src/components/blocks/RenderBlocks.tsx`)
-  console.log(`  ${chalk.gray('Types')}       src/payload-types.ts`) // paso 6
-  console.log(`  ${chalk.gray('Types')}       src/types/blocks.ts`) // paso 7
   console.log('')
 }

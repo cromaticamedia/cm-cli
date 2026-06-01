@@ -104,19 +104,30 @@ async function removeFromRenderBlocks(blockName: string, pascalName: string) {
   const importLine = `import ${pascalName} from '@/components/blocks/${pascalName}'`
   if (!content.includes(importLine)) return false
 
-  // Remove import line
+  // Remove component import line
   content = content.replace(importLine + '\n', '')
 
-  // Remove Extract type line
-  content = content.replace(
-    new RegExp(
-      `type ${pascalName}Type = Extract<Layout\\[number\\], \\{ blockType: '${blockName}' \\}>\\n`,
-      'g',
-    ),
-    '',
-  )
+  // Remove Props from @/types/blocks import line
+  const typeImport = `${pascalName}Props`
+  const blocksTypeImportRegex = /import type \{([^}]+)\} from '@\/types\/blocks'/
+  const match = content.match(blocksTypeImportRegex)
+  if (match) {
+    const existing = match[1]
+      .split(',')
+      .map((s) => s.trim())
+      .filter((s) => s !== typeImport)
+    if (existing.length === 0) {
+      // Si era el único tipo, eliminar la línea entera
+      content = content.replace(/import type \{[^}]+\} from '@\/types\/blocks'\n/, '')
+    } else {
+      content = content.replace(
+        blocksTypeImportRegex,
+        `import type { ${existing.join(', ')} } from '@/types/blocks'`,
+      )
+    }
+  }
 
-  // Remove case block (case + return + newline)
+  // Remove case block
   content = content.replace(
     new RegExp(`\\s*case '${blockName}':\\n\\s*return <${pascalName}[^\\n]*\\n`, 'g'),
     '\n',
@@ -241,19 +252,7 @@ export async function deleteBlock(blockName: string) {
     process.exit(1)
   }
 
-  // 5. Generate Payload types
-  const typesSpinner = ora(`Generating Payload types`).start()
-  try {
-    generateTypes()
-    typesSpinner.succeed(`Payload types regenerated`)
-  } catch (err) {
-    typesSpinner.fail(
-      chalk.red(`Failed to generate types — run "pnpm payload generate:types" manually`),
-    )
-    process.exit(1)
-  }
-
-  // 6. Remove from src/types/blocks.ts
+  // 5. Remove from src/types/blocks.ts
   const blocksTypesSpinner = ora(`Removing types from blocks.ts`).start()
   try {
     const removed = await removeFromBlocksTypes(blockName, pascalName)
@@ -269,6 +268,18 @@ export async function deleteBlock(blockName: string) {
     process.exit(1)
   }
 
+  // 6. Generate Payload types
+  const typesSpinner = ora(`Generating Payload types`).start()
+  try {
+    generateTypes()
+    typesSpinner.succeed(`Payload types regenerated`)
+  } catch (err) {
+    typesSpinner.fail(
+      chalk.red(`Failed to generate types — run "pnpm payload generate:types" manually`),
+    )
+    process.exit(1)
+  }
+
   // Done
   console.log('')
   console.log(chalk.bold.green('  ✔ Block removed successfully'))
@@ -277,7 +288,7 @@ export async function deleteBlock(blockName: string) {
   console.log(`  ${chalk.gray('Removed')}     src/blocks/${pascalName}/`)
   console.log(`  ${chalk.gray('Updated')}     src/fields/Blocks/Blocks.field.ts`)
   console.log(`  ${chalk.gray('Updated')}     src/components/blocks/RenderBlocks.tsx`)
-  console.log(`  ${chalk.gray('Types')}       src/payload-types.ts`)
   console.log(`  ${chalk.gray('Types')}       src/types/blocks.ts`)
+  console.log(`  ${chalk.gray('Types')}       src/payload-types.ts`)
   console.log('')
 }
