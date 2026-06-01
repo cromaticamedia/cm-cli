@@ -126,6 +126,28 @@ async function removeFromRenderBlocks(blockName: string, pascalName: string) {
   return true
 }
 
+// ── Remove from src/types/blocks.ts ──────────────────────────────────────────
+
+async function removeFromBlocksTypes(blockName: string, pascalName: string) {
+  const blocksTypesPath = path.join(process.cwd(), 'src', 'types', 'blocks.ts')
+
+  const exists = await fileExists(blocksTypesPath)
+  if (!exists) return false // archivo opcional, no es error
+
+  let content = await fs.readFile(blocksTypesPath, 'utf-8')
+
+  const blockTypeLine = `export type ${pascalName}Block = BlockByType<'${blockName}'>`
+  const propsTypeLine = `export type ${pascalName}Props = WithLocale<${pascalName}Block>`
+
+  if (!content.includes(blockTypeLine)) return false
+
+  content = content.replace(blockTypeLine + '\n', '')
+  content = content.replace(propsTypeLine + '\n', '')
+
+  await fs.writeFile(blocksTypesPath, content, 'utf-8')
+  return true
+}
+
 // ── Generate Payload types ────────────────────────────────────────────────────
 
 function generateTypes() {
@@ -228,6 +250,23 @@ export async function deleteBlock(blockName: string) {
     typesSpinner.fail(
       chalk.red(`Failed to generate types — run "pnpm payload generate:types" manually`),
     )
+    process.exit(1)
+  }
+
+  // 6. Remove from src/types/blocks.ts
+  const blocksTypesSpinner = ora(`Removing types from blocks.ts`).start()
+  try {
+    const removed = await removeFromBlocksTypes(blockName, pascalName)
+    if (removed) {
+      blocksTypesSpinner.succeed(`Removed ${chalk.green(`${pascalName}Props`)} from blocks.ts`)
+    } else {
+      blocksTypesSpinner.warn(
+        `${chalk.yellow(`${pascalName}Props`)} was not found in blocks.ts or file not found`,
+      )
+    }
+  } catch (err) {
+    blocksTypesSpinner.fail(chalk.red((err as Error).message))
+    process.exit(1)
   }
 
   // Done
@@ -239,5 +278,6 @@ export async function deleteBlock(blockName: string) {
   console.log(`  ${chalk.gray('Updated')}     src/fields/Blocks/Blocks.field.ts`)
   console.log(`  ${chalk.gray('Updated')}     src/components/blocks/RenderBlocks.tsx`)
   console.log(`  ${chalk.gray('Types')}       src/payload-types.ts`)
+  console.log(`  ${chalk.gray('Types')}       src/types/blocks.ts`)
   console.log('')
 }

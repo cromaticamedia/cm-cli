@@ -5,7 +5,7 @@
   "author": "Leonardo Risco",
   "type": "module",
   "bin": {
-    "cromatica": "dist/index.js"
+    "cromatica-cli": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",
